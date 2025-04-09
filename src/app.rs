@@ -1,15 +1,11 @@
-use std::collections::BTreeMap;
-
 use iced::widget::horizontal_space;
-use iced::{Element, Subscription, Task, Vector, window};
+use iced::{Element, Subscription, Task, window};
 
-use crate::subwindow::SubWindow;
 use crate::window::Window;
 
 #[derive(Default)]
 pub struct Susie {
-    main_window: Window,
-    windows: BTreeMap<window::Id, SubWindow>,
+    window: Option<Window>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -21,75 +17,32 @@ pub enum Message {
 
 impl Susie {
     pub fn new() -> (Self, Task<Message>) {
-        let (id, open) = window::open(window::Settings::default());
+        let (_id, open) = window::open(window::Settings::default());
 
-        (
-            Self {
-                main_window: Window {
-                    id,
-                    ..Default::default()
-                },
-                windows: BTreeMap::new(),
-            },
-            open.map(Message::WindowOpened),
-        )
+        (Self::default(), open.map(Message::WindowOpened))
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::CreateWindow => {
-                let last_window = if let Some(l) = self.windows.keys().last() {
-                    l
-                } else {
-                    &self.main_window.id
-                };
-
-                window::get_position(*last_window)
-                    .then(|last_position| {
-                        let position =
-                            last_position.map_or(window::Position::Default, |last_position| {
-                                window::Position::Specific(last_position + Vector::new(20.0, 20.0))
-                            });
-
-                        let (_id, open) = window::open(window::Settings {
-                            position,
-                            ..window::Settings::default()
-                        });
-
-                        open
-                    })
-                    .map(Message::WindowOpened)
-            }
+            Message::CreateWindow => window::open(window::Settings::default())
+                .1
+                .map(Message::WindowOpened),
             Message::WindowOpened(id) => {
-                if id == self.main_window.id {
-                    return Task::none();
-                }
-
-                let window = SubWindow {};
-
-                self.windows.insert(id, window);
+                self.window = Some(Window { id });
                 Task::none()
             }
 
-            Message::WindowClosed(id) => {
-                if id == self.main_window.id {
-                    return iced::exit();
-                }
-
-                self.windows.remove(&id);
+            Message::WindowClosed(_) => {
+                self.window = None;
 
                 Task::none()
             }
         }
     }
 
-    pub fn view(&self, window_id: window::Id) -> Element<Message> {
-        if window_id == self.main_window.id {
-            return self.main_window.view().into();
-        }
-
-        if let Some(window) = self.windows.get(&window_id) {
-            window.view(window_id).into()
+    pub fn view(&self, _window_id: window::Id) -> Element<Message> {
+        if let Some(window) = &self.window {
+            window.view().into()
         } else {
             horizontal_space().into()
         }

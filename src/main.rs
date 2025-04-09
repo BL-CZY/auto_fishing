@@ -2,7 +2,6 @@ use app::Susie;
 use iced::Theme;
 
 pub mod app;
-pub mod subwindow;
 pub mod window;
 
 fn main() -> iced::Result {

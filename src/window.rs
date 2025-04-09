@@ -29,9 +29,6 @@ fn column_style(theme: &Theme) -> iced::widget::container::Style {
 pub struct Window {
     #[default(_code = "iced::window::Id::unique()")]
     pub id: iced::window::Id,
-    #[default(_code = "(0, 0)")]
-    pub cur_ind: (usize, usize), // (the index of the extension, the index of the entry in the
-                                 // extension)
 }
 
 impl Window {
@@ -46,15 +43,11 @@ impl Window {
         .padding(5)
         .style(|theme| column_style(theme));
 
-        let right = container(scrollable(column![
-            button("Yo")
-                .width(Length::Fill)
-                .on_press(Message::CreateWindow)
-        ]))
-        .width(Length::FillPortion(7))
-        .height(Length::Fill)
-        .padding(5)
-        .style(|theme| column_style(theme));
+        let right = container(scrollable(column![button("Yo").width(Length::Fill)]))
+            .width(Length::FillPortion(7))
+            .height(Length::Fill)
+            .padding(5)
+            .style(|theme| column_style(theme));
 
         row![left, right]
             .width(Length::Fill)
