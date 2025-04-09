@@ -1,29 +1,10 @@
 use iced::{
-    Alignment, Element, Length, Theme,
-    widget::{Column, button, column, container, row, scrollable},
+    Element,
+    widget::{button, column, row, text, text_input},
 };
 use smart_default::SmartDefault;
 
-use crate::app::Message;
-
-fn column_style(theme: &Theme) -> iced::widget::container::Style {
-    use iced::{Border, Color, Shadow, Vector, border::Radius, widget::container::Style};
-
-    Style {
-        border: Border {
-            color: theme.palette().primary,
-            radius: Radius::new(2.0),
-            width: 2.0,
-        },
-        text_color: None,
-        background: Some(iced::Background::Color(theme.palette().background)),
-        shadow: Shadow {
-            color: Color::BLACK,
-            blur_radius: 10.0,
-            offset: Vector::new(2.0, 2.0),
-        },
-    }
-}
+use crate::app::{Context, Message};
 
 #[derive(SmartDefault)]
 pub struct Window {
@@ -32,28 +13,24 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn view(&self) -> Element<Message> {
-        let left_col_content: Vec<Element<Message>> = vec![];
+    pub fn view(&self, context: &Context) -> Element<Message> {
+        let btn = match &context.handle {
+            Some(_) => button("Stop").on_press(Message::Stop),
+            None => button("Start").on_press(Message::Start),
+        };
 
-        let left = container(scrollable(
-            Column::from_vec(left_col_content).width(Length::Fill),
-        ))
-        .width(Length::FillPortion(3))
-        .height(Length::Fill)
-        .padding(5)
-        .style(|theme| column_style(theme));
-
-        let right = container(scrollable(column![button("Yo").width(Length::Fill)]))
-            .width(Length::FillPortion(7))
-            .height(Length::Fill)
-            .padding(5)
-            .style(|theme| column_style(theme));
-
-        row![left, right]
-            .width(Length::Fill)
-            .spacing(10)
-            .padding(10)
-            .align_y(Alignment::Center)
-            .into()
+        column![
+            text!("Welcome to the fishing util!"),
+            row![
+                column![
+                    button("Select range").on_press(Message::GetScale),
+                    text!("{}", context.scale)
+                ],
+                text_input("0.5", "Time Interval").on_input(Message::TimeInterval),
+                text_input("ebonkoi", "Item Name").on_input(Message::ItemName),
+            ],
+        ]
+        .push(btn)
+        .into()
     }
 }

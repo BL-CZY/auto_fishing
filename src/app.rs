@@ -2,13 +2,26 @@ use iced::futures::Stream;
 use iced::stream::try_channel;
 use iced::widget::horizontal_space;
 use iced::{Element, Subscription, Task, window};
+use smart_default::SmartDefault;
 
 use crate::tray::{TrayEvents, create_icon};
 use crate::window::Window;
 
+#[derive(SmartDefault)]
+pub struct Context {
+    #[default("--")]
+    pub scale: String,
+    #[default(0.5)]
+    pub interval: f32,
+    #[default("Ebonkoi")]
+    pub name: String,
+    pub handle: Option<tokio::task::JoinHandle<()>>,
+}
+
 #[derive(Default)]
 pub struct Fishing {
     window: Option<Window>,
+    context: Context,
 }
 
 #[derive(Debug, Clone)]
@@ -17,13 +30,18 @@ pub enum Message {
     WindowOpened(window::Id),
     WindowClosed(window::Id),
     Tray(TrayEvents),
+    GetScale,
+    TimeInterval(String),
+    ItemName(String),
+    Start,
+    Stop,
 }
 
 impl Fishing {
     pub fn new() -> (Self, Task<Message>) {
         let (_id, open) = window::open(window::Settings::default());
 
-        (Self { window: None }, open.map(Message::WindowOpened))
+        (Self::default(), open.map(Message::WindowOpened))
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -56,12 +74,68 @@ impl Fishing {
                     Task::none()
                 }
             },
+
+            Message::GetScale => {
+                let out = match std::process::Command::new("slurp").output() {
+                    Ok(out) => out,
+                    Err(e) => {
+                        self.context.scale = e.to_string();
+                        return Task::none();
+                    }
+                };
+
+                let result = String::from_utf8_lossy(&out.stdout).to_string();
+                self.context.scale = result;
+
+                Task::none()
+            }
+
+            Message::TimeInterval(str) => {
+                let Ok(num) = str.parse::<f32>() else {
+                    return Task::none();
+                };
+
+                self.context.interval = num;
+
+                Task::none()
+            }
+
+            Message::ItemName(name) => {
+                self.context.name = name;
+                Task::none()
+            }
+
+            Message::Start => {
+                if !self.context.handle.is_none() {
+                    return Task::none();
+                }
+
+                let handle = tokio::spawn(async move {
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        println!("YOOO");
+                    }
+                });
+                self.context.handle = Some(handle);
+                Task::none()
+            }
+
+            Message::Stop => {
+                let Some(handle) = &self.context.handle else {
+                    return Task::none();
+                };
+
+                handle.abort();
+                self.context.handle = None;
+
+                Task::none()
+            }
         }
     }
 
     pub fn view(&self, _window_id: window::Id) -> Element<Message> {
         if let Some(window) = &self.window {
-            window.view().into()
+            window.view(&self.context).into()
         } else {
             horizontal_space().into()
         }
