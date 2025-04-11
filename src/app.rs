@@ -56,7 +56,12 @@ impl Fishing {
         match message {
             Message::CreateWindow => {
                 let mut settings = window::Settings::default();
-                settings.platform_specific.application_id = "fishing".into();
+
+                #[cfg(target_os = "linux")]
+                {
+                    settings.platform_specific.application_id = "fishing".into();
+                }
+
                 settings.size = iced::Size::new(800.0, 600.0);
 
                 window::open(settings).1.map(Message::WindowOpened)
