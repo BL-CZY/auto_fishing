@@ -5,7 +5,7 @@ use iced::{Element, Subscription, Task, window};
 use smart_default::SmartDefault;
 
 use crate::fishing::start_fishing;
-use crate::tray::{TrayEvents, create_icon};
+use crate::tray::{TrayEvents, TrayInput, create_icon};
 use crate::window::Window;
 
 #[derive(SmartDefault)]
@@ -20,6 +20,7 @@ pub struct Context {
     #[default("0.5")]
     pub raw_time: String,
     pub is_capturing: bool,
+    pub input_sender: Option<tokio::sync::mpsc::Sender<TrayInput>>,
 }
 
 #[derive(Default)]
@@ -93,6 +94,10 @@ impl Fishing {
                     println!("Received an error from tray: {e}");
                     Task::none()
                 }
+                TrayEvents::PassSender(tx) => {
+                    self.context.input_sender = Some(tx);
+                    Task::none()
+                }
             },
 
             Message::GetScale => {
@@ -132,6 +137,19 @@ impl Fishing {
                     println!("{:?}", res);
                 });
                 self.context.handle = Some(handle);
+
+                let Some(tx) = &self.context.input_sender else {
+                    return Task::none();
+                };
+
+                let tx = tx.clone();
+
+                tokio::spawn(async move {
+                    tx.send(TrayInput::Started).await.unwrap_or_else(|e| {
+                        println!("Cannot send: {e}");
+                    });
+                });
+
                 Task::none()
             }
 
@@ -142,6 +160,18 @@ impl Fishing {
 
                 handle.abort();
                 self.context.handle = None;
+
+                let Some(tx) = &self.context.input_sender else {
+                    return Task::none();
+                };
+
+                let tx = tx.clone();
+
+                tokio::spawn(async move {
+                    tx.send(TrayInput::Stopped).await.unwrap_or_else(|e| {
+                        println!("Cannot send: {e}");
+                    });
+                });
 
                 Task::none()
             }

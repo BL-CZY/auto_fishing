@@ -3,6 +3,7 @@ pub enum TrayEvents {
     Open,
     Toggle,
     Quit,
+    PassSender(tokio::sync::mpsc::Sender<TrayInput>),
     Err(String),
 }
 
@@ -12,11 +13,19 @@ pub enum TrayInput {
     Stopped,
 }
 
-use iced::futures::SinkExt;
-use iced::futures::channel::mpsc::Sender;
+use iced::futures::{SinkExt, channel::mpsc::Sender};
 use tray_item::{IconSource, TrayItem};
 
 pub async fn create_icon(mut tx: Sender<TrayEvents>) -> Result<(), Box<dyn std::error::Error>> {
+    // external input from the app
+    let (input_tx, mut input_rx) = tokio::sync::mpsc::channel::<TrayInput>(1);
+
+    tx.send(TrayEvents::PassSender(input_tx))
+        .await
+        .unwrap_or_else(|e| {
+            println!("Cannot send: {e}");
+        });
+
     // Create a new tray item with the specified title and icon
     let mut tray = TrayItem::new("My Tray App", IconSource::Resource("checkmark"))?;
 
@@ -51,21 +60,40 @@ pub async fn create_icon(mut tx: Sender<TrayEvents>) -> Result<(), Box<dyn std::
             });
     })?;
 
-    while let Some(evt) = internal_rx.recv().await {
-        let should_stop = if let TrayEvents::Quit = evt {
-            true
-        } else {
-            false
-        };
+    'looping: loop {
+        tokio::select! {
+            Some(evt) = internal_rx.recv() => {
+                let should_stop = if let TrayEvents::Quit = evt {
+                    true
+                } else {
+                    false
+                };
 
-        tx.send(evt).await.unwrap_or_else(|e| {
-            println!("Cannot send to app: {e}");
-        });
+                tx.send(evt).await.unwrap_or_else(|e| {
+                    println!("Cannot send to app: {e}");
+                });
 
-        if should_stop {
-            break;
+                if should_stop {
+                    break 'looping;
+                }
+            }
+
+            Some(evt) = input_rx.recv() => {
+                process_evt(evt, &mut tray);
+            }
         }
     }
 
     Ok(())
+}
+
+fn process_evt(evt: TrayInput, tray: &mut TrayItem) {
+    let res = match evt {
+        TrayInput::Started => tray.set_icon(IconSource::Resource("emblem-pause")),
+        TrayInput::Stopped => tray.set_icon(IconSource::Resource("checkmark")),
+    };
+
+    if res.is_err() {
+        println!("{:?}", res);
+    }
 }
