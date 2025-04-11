@@ -1,4 +1,4 @@
-use iced::futures::Stream;
+use iced::futures::{SinkExt, Stream};
 use iced::stream::try_channel;
 use iced::widget::horizontal_space;
 use iced::{Element, Subscription, Task, window};
@@ -19,6 +19,7 @@ pub struct Context {
     pub handle: Option<tokio::task::JoinHandle<()>>,
     #[default("0.5")]
     pub raw_time: String,
+    pub is_capturing: bool,
 }
 
 #[derive(Default)]
@@ -34,6 +35,7 @@ pub enum Message {
     WindowClosed(window::Id),
     Tray(TrayEvents),
     GetScale,
+    ScaleVal(String),
     TimeInterval(String),
     ItemName(String),
     Start,
@@ -42,16 +44,23 @@ pub enum Message {
 
 impl Fishing {
     pub fn new() -> (Self, Task<Message>) {
-        let (_id, open) = window::open(window::Settings::default());
+        let mut settings = window::Settings::default();
+        settings.platform_specific.application_id = "fishing".into();
+        settings.size = iced::Size::new(800.0, 600.0);
+        let (_id, open) = window::open(settings);
 
         (Self::default(), open.map(Message::WindowOpened))
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::CreateWindow => window::open(window::Settings::default())
-                .1
-                .map(Message::WindowOpened),
+            Message::CreateWindow => {
+                let mut settings = window::Settings::default();
+                settings.platform_specific.application_id = "fishing".into();
+                settings.size = iced::Size::new(800.0, 600.0);
+
+                window::open(settings).1.map(Message::WindowOpened)
+            }
             Message::WindowOpened(id) => {
                 self.window = Some(Window { id });
                 Task::none()
@@ -59,7 +68,6 @@ impl Fishing {
 
             Message::WindowClosed(_) => {
                 self.window = None;
-
                 Task::none()
             }
 
@@ -79,16 +87,7 @@ impl Fishing {
             },
 
             Message::GetScale => {
-                let out = match std::process::Command::new("slurp").output() {
-                    Ok(out) => out,
-                    Err(e) => {
-                        self.context.scale = e.to_string();
-                        return Task::none();
-                    }
-                };
-
-                let result = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                self.context.scale = result;
+                self.context.is_capturing = true;
 
                 Task::none()
             }
@@ -137,6 +136,12 @@ impl Fishing {
 
                 Task::none()
             }
+
+            Message::ScaleVal(str) => {
+                self.context.scale = str;
+                self.context.is_capturing = false;
+                Task::none()
+            }
         }
     }
 
@@ -154,6 +159,7 @@ impl Fishing {
             iced::Subscription::run(|| tray_events())
                 .map(|val| val.map_or_else(|e| TrayEvents::Err(e), |e| e))
                 .map(Message::Tray),
+            scale_capture(self.context.is_capturing),
         ])
     }
 }
@@ -165,6 +171,32 @@ fn window_close_sub() -> Subscription<Message> {
 fn tray_events() -> impl Stream<Item = Result<TrayEvents, String>> {
     try_channel(1, move |output| async move {
         create_icon(output).await.map_err(|e| e.to_string())?;
+        Ok(())
+    })
+}
+
+fn scale_capture(is_capturing: bool) -> Subscription<Message> {
+    if !is_capturing {
+        return Subscription::none();
+    }
+
+    Subscription::run(scale_capture_stream)
+        .map(|val| val.map_or_else(|e| Message::ScaleVal(e), |v| v))
+}
+
+fn scale_capture_stream() -> impl Stream<Item = Result<Message, String>> {
+    try_channel(1, move |mut output| async move {
+        let out = match tokio::process::Command::new("slurp").output().await {
+            Ok(out) => out,
+            Err(e) => {
+                println!("Cannot get scale: {e}");
+                return Err(e.to_string());
+            }
+        };
+
+        let result = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let _ = output.send(Message::ScaleVal(result)).await;
+
         Ok(())
     })
 }
