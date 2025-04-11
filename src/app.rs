@@ -85,6 +85,10 @@ impl Fishing {
                     }
                 }
                 TrayEvents::Quit => iced::exit(),
+                TrayEvents::Toggle => match self.context.handle {
+                    Some(_) => Task::done(Message::Stop),
+                    None => Task::done(Message::Start),
+                },
                 TrayEvents::Err(e) => {
                     println!("Received an error from tray: {e}");
                     Task::none()
