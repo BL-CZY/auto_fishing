@@ -2,7 +2,7 @@
 pub use linux::create_icon;
 
 #[cfg(target_os = "macos")]
-pub use macos::create_icon;
+pub use linux::create_icon;
 
 #[derive(Debug, Clone)]
 pub enum TrayEvents {
@@ -11,70 +11,6 @@ pub enum TrayEvents {
     Err(String),
 }
 
-#[cfg(target_os = "macos")]
-mod macos {
-    use super::*;
-    use std::sync::{Arc, Mutex};
-    use std::thread;
-    use tokio::sync::mpsc;
-    use trayicon::{MenuBuilder, TrayIconBuilder};
-
-    pub async fn create_icon(mut tx: Sender<TrayEvents>) -> Result<(), Box<dyn Error>> {
-        let (internal_tx, mut internal_rx) = mpsc::channel::<TrayEvents>(1);
-        let internal_tx_arc = Arc::new(Mutex::new(internal_tx.clone()));
-
-        // Launch tray icon in a separate thread
-        thread::spawn(move || {
-            // Create a new menu builder
-            let menu = MenuBuilder::new()
-                .item("Open", move || {
-                    let tx = internal_tx_arc.lock().unwrap();
-                    tokio::spawn(async move {
-                        tx.send(TrayEvents::Open).await.unwrap_or_else(|e| {
-                            println!("Failed to send Open event: {e}");
-                        });
-                    });
-                })
-                .separator()
-                .item("Quit", move || {
-                    let tx = internal_tx.clone();
-                    tokio::spawn(async move {
-                        tx.send(TrayEvents::Quit).await.unwrap_or_else(|e| {
-                            println!("Failed to send Quit event: {e}");
-                        });
-                    });
-                });
-
-            // Create tray icon with menu
-            let tray = TrayIconBuilder::new()
-                .with_menu(menu)
-                .with_tooltip("My Tray App")
-                .with_icon_from_resource("checkmark")
-                .build()
-                .expect("Failed to create tray icon");
-
-            // Run event loop
-            tray.run_event_loop();
-        });
-
-        // Forward events from the internal channel to the application channel
-        while let Some(evt) = internal_rx.recv().await {
-            let should_stop = matches!(evt, TrayEvents::Quit);
-
-            tx.send(evt).await.unwrap_or_else(|e| {
-                println!("Cannot send to app: {e}");
-            });
-
-            if should_stop {
-                break;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[cfg(target_os = "linux")]
 mod linux {
     use super::TrayEvents;
 
