@@ -2,6 +2,7 @@ use app::Fishing;
 use iced::Theme;
 
 pub mod app;
+pub mod fishing;
 pub mod tray;
 pub mod window;
 

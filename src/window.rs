@@ -26,8 +26,8 @@ impl Window {
                     button("Select range").on_press(Message::GetScale),
                     text!("{}", context.scale)
                 ],
-                text_input("0.5", "Time Interval").on_input(Message::TimeInterval),
-                text_input("ebonkoi", "Item Name").on_input(Message::ItemName),
+                text_input("0.5", &context.raw_time).on_input(Message::TimeInterval),
+                text_input("ebonkoi", &context.name).on_input(Message::ItemName),
             ],
         ]
         .push(btn)

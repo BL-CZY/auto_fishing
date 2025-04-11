@@ -4,6 +4,7 @@ use iced::widget::horizontal_space;
 use iced::{Element, Subscription, Task, window};
 use smart_default::SmartDefault;
 
+use crate::fishing::start_fishing;
 use crate::tray::{TrayEvents, create_icon};
 use crate::window::Window;
 
@@ -16,6 +17,8 @@ pub struct Context {
     #[default("Ebonkoi")]
     pub name: String,
     pub handle: Option<tokio::task::JoinHandle<()>>,
+    #[default("0.5")]
+    pub raw_time: String,
 }
 
 #[derive(Default)]
@@ -84,7 +87,7 @@ impl Fishing {
                     }
                 };
 
-                let result = String::from_utf8_lossy(&out.stdout).to_string();
+                let result = String::from_utf8_lossy(&out.stdout).trim().to_string();
                 self.context.scale = result;
 
                 Task::none()
@@ -92,10 +95,12 @@ impl Fishing {
 
             Message::TimeInterval(str) => {
                 let Ok(num) = str.parse::<f32>() else {
+                    self.context.raw_time = str;
                     return Task::none();
                 };
 
                 self.context.interval = num;
+                self.context.raw_time = str;
 
                 Task::none()
             }
@@ -110,11 +115,13 @@ impl Fishing {
                     return Task::none();
                 }
 
+                let scale = self.context.scale.clone();
+                let time_interval = self.context.interval.clone();
+                let keyword = self.context.name.clone();
+
                 let handle = tokio::spawn(async move {
-                    loop {
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        println!("YOOO");
-                    }
+                    let res = start_fishing(scale, time_interval, keyword).await;
+                    println!("{:?}", res);
                 });
                 self.context.handle = Some(handle);
                 Task::none()
