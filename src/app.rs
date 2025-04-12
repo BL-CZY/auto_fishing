@@ -16,6 +16,8 @@ pub struct Context {
     #[default(false)]
     pub is_fishing: bool,
     pub err: String,
+    #[default(-1)]
+    pub count_down: i32,
 
     pub handle: Option<Arc<tokio::task::JoinHandle<()>>>,
 
@@ -134,6 +136,7 @@ impl Fishing {
                     return Task::none();
                 }
 
+                self.context.count_down = 3;
                 self.context.err = "".into();
                 self.context.is_fishing = true;
 
@@ -160,6 +163,7 @@ impl Fishing {
                 handle.abort();
                 self.context.handle = None;
                 self.context.is_fishing = false;
+                self.context.count_down = -1;
 
                 let Some(tx) = &self.context.input_sender else {
                     return Task::none();
@@ -187,7 +191,12 @@ impl Fishing {
                     self.context.handle = Some(handle);
                     Task::none()
                 }
+                FishingEvt::CountDown(num) => {
+                    self.context.count_down = num;
+                    Task::none()
+                }
             },
+
             Message::FishingErr(err) => {
                 self.context.err = err.to_string();
                 Task::none()

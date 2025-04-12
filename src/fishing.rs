@@ -1,7 +1,7 @@
 use std::{convert::Infallible, path::PathBuf, sync::Arc};
 
 use iced::{
-    futures::{SinkExt, Stream, TryFutureExt},
+    futures::{SinkExt, Stream},
     stream::try_channel,
 };
 use smart_default::SmartDefault;
@@ -13,12 +13,15 @@ pub fn fishing_process_stream(
     args: FishingArgs,
 ) -> impl Stream<Item = Result<FishingEvt, Arc<FishingErr>>> {
     try_channel(1, move |mut tx| async move {
+        let tx_clone = tx.clone();
+
         let handle = tokio::spawn(async move {
-            let _ = start_fishing(args).await;
+            let tx_clone0 = tx_clone.clone();
+            let _ = start_fishing(args, tx_clone0).await?;
         });
 
-        let _ = tx
-            .send(FishingEvt::PassHandle(Arc::new(handle)))
+        tx.send(FishingEvt::PassHandle(Arc::new(handle)))
+            .await
             .unwrap_or_else(|e| {
                 println!("Cannot send handle: {e}");
             });
@@ -30,6 +33,7 @@ pub fn fishing_process_stream(
 #[derive(Debug, Clone)]
 pub enum FishingEvt {
     PassHandle(Arc<JoinHandle<()>>),
+    CountDown(i32),
 }
 
 #[derive(Debug, Error)]
@@ -72,6 +76,7 @@ pub async fn start_fishing(
         time_interval,
         keyword,
     }: FishingArgs,
+    mut tx: iced::futures::channel::mpsc::Sender<FishingEvt>,
 ) -> Result<Infallible, FishingErr> {
     let home = std::env::var("HOME").expect("No home");
     let mut path = PathBuf::from(home);
@@ -80,7 +85,21 @@ pub async fn start_fishing(
     let _ = tokio::fs::create_dir_all(&path).await;
 
     path.push("screenshot.png");
-    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    tx.send(FishingEvt::CountDown(2)).await.unwrap_or_else(|e| {
+        println!("Cannot send fishing event: {e}");
+    });
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    tx.send(FishingEvt::CountDown(1)).await.unwrap_or_else(|e| {
+        println!("Cannot send fishing event: {e}");
+    });
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    tx.send(FishingEvt::CountDown(0)).await.unwrap_or_else(|e| {
+        println!("Cannot send fishing event: {e}");
+    });
 
     loop {
         tokio::process::Command::new("grim")

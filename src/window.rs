@@ -59,6 +59,15 @@ impl Window {
                 .spacing(20)
                 .padding(20),
                 action_button,
+                {
+                    if context.count_down == -1 {
+                        text("")
+                    } else if context.count_down == 0 {
+                        text("Running...").size(50)
+                    } else {
+                        text(context.count_down.to_string()).size(50)
+                    }
+                }
             ]
             .spacing(20)
             .padding(20)
