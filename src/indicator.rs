@@ -74,7 +74,9 @@ pub fn start_gtk(
             window.set_margin(gtk4_layer_shell::Edge::Top, y - context.offset_y);
 
             window.set_width_request(w);
+            window.set_default_width(w);
             window.set_height_request(h);
+            window.set_default_height(h);
 
             window.set_visible(true);
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
