@@ -21,7 +21,7 @@ pub struct Context {
 
     pub handle: Option<Arc<tokio::task::JoinHandle<()>>>,
 
-    #[default("0.5")]
+    #[default("1")]
     pub raw_time: String,
 
     pub is_capturing: bool,
@@ -52,13 +52,25 @@ pub enum Message {
 }
 
 impl Fishing {
-    pub fn new() -> (Self, Task<Message>) {
+    pub fn new(tx: tokio::sync::mpsc::Sender<(i32, i32, i32, i32)>) -> (Self, Task<Message>) {
         let mut settings = window::Settings::default();
         settings.platform_specific.application_id = "fishing".into();
         settings.size = iced::Size::new(800.0, 600.0);
         let (_id, open) = window::open(settings);
 
-        (Self::default(), open.map(Message::WindowOpened))
+        (
+            Self {
+                context: Context {
+                    args: FishingArgs {
+                        indicator_tx: Some(tx),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            open.map(Message::WindowOpened),
+        )
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {

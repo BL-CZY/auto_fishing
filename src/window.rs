@@ -50,15 +50,15 @@ impl Window {
                     time_input.width(Length::Fill),
                     text("Name:"),
                     name_input.width(Length::Fill),
-                    text(context.err.clone()).style(|theme: &Theme| {
-                        text::Style {
-                            color: Some(theme.palette().danger),
-                        }
-                    }),
                 ]
                 .spacing(20)
                 .padding(20),
                 action_button,
+                text(context.err.clone()).style(|theme: &Theme| {
+                    text::Style {
+                        color: Some(theme.palette().danger),
+                    }
+                }),
                 {
                     if context.count_down == -1 {
                         text("")
