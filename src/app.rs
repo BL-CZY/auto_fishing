@@ -4,21 +4,19 @@ use iced::widget::horizontal_space;
 use iced::{Element, Subscription, Task, window};
 use smart_default::SmartDefault;
 
-use crate::fishing::start_fishing;
+use crate::fishing::{FishingArgs, FishingErr, FishingEvt, fishing_process_stream, start_fishing};
 use crate::tray::{TrayEvents, TrayInput, create_icon};
 use crate::window::Window;
 
 #[derive(SmartDefault)]
 pub struct Context {
-    #[default("--")]
-    pub scale: String,
-    #[default(0.5)]
-    pub interval: f32,
-    #[default("Ebonkoi")]
-    pub name: String,
+    pub args: FishingArgs,
+
     pub handle: Option<tokio::task::JoinHandle<()>>,
+
     #[default("0.5")]
     pub raw_time: String,
+
     pub is_capturing: bool,
     pub input_sender: Option<tokio::sync::mpsc::Sender<TrayInput>>,
 }
@@ -41,6 +39,8 @@ pub enum Message {
     ItemName(String),
     Start,
     Stop,
+    FishingEvt(FishingEvt),
+    FishingErr(String),
 }
 
 impl Fishing {
@@ -112,14 +112,14 @@ impl Fishing {
                     return Task::none();
                 };
 
-                self.context.interval = num;
+                self.context.args.time_interval = num;
                 self.context.raw_time = str;
 
                 Task::none()
             }
 
             Message::ItemName(name) => {
-                self.context.name = name;
+                self.context.args.keyword = name;
                 Task::none()
             }
 
@@ -128,13 +128,9 @@ impl Fishing {
                     return Task::none();
                 }
 
-                let scale = self.context.scale.clone();
-                let time_interval = self.context.interval.clone();
-                let keyword = self.context.name.clone();
-
                 let handle = tokio::spawn(async move {
-                    let res = start_fishing(scale, time_interval, keyword).await;
-                    println!("{:?}", res);
+                    // let res = start_fishing(scale, time_interval, keyword).await;
+                    // println!("{:?}", res);
                 });
                 self.context.handle = Some(handle);
 
@@ -177,10 +173,13 @@ impl Fishing {
             }
 
             Message::ScaleVal(str) => {
-                self.context.scale = str;
+                self.context.args.scale = str;
                 self.context.is_capturing = false;
                 Task::none()
             }
+
+            Message::FishingEvt(_) => Task::none(),
+            Message::FishingErr(_) => Task::none(),
         }
     }
 
@@ -237,5 +236,18 @@ fn scale_capture_stream() -> impl Stream<Item = Result<Message, String>> {
         let _ = output.send(Message::ScaleVal(result)).await;
 
         Ok(())
+    })
+}
+
+fn fishing_process(is_fishing: bool, args: &FishingArgs) -> Subscription<Message> {
+    if !is_fishing {
+        return Subscription::none();
+    }
+
+    Subscription::run_with_id(0, fishing_process_stream(args.clone())).map(|res| {
+        res.map_or_else(
+            |e| Message::FishingErr(e.to_string()),
+            |evt| Message::FishingEvt(evt),
+        )
     })
 }

@@ -1,5 +1,31 @@
 use std::{convert::Infallible, path::PathBuf};
 
+use iced::{futures::Stream, stream::try_channel};
+use smart_default::SmartDefault;
+use tesseract::{InitializeError, SetImageError, plumbing::TessBaseApiGetUtf8TextError};
+use thiserror::Error;
+
+pub fn fishing_process_stream(
+    args: FishingArgs,
+) -> impl Stream<Item = Result<FishingEvt, FishingErr>> {
+    try_channel(1, move |tx| async move { Ok(()) })
+}
+
+#[derive(Debug, Clone)]
+pub enum FishingEvt {}
+
+#[derive(Debug, Error)]
+pub enum FishingErr {
+    #[error("IO Error: {0}")]
+    IoErr(#[from] std::io::Error),
+    #[error("OCR Init Error: {0}")]
+    InitErr(#[from] InitializeError),
+    #[error("OCR Imagee Error: {0}")]
+    ImgErr(#[from] SetImageError),
+    #[error("OCR Error: {0}")]
+    OCRErr(#[from] TessBaseApiGetUtf8TextError),
+}
+
 async fn click() {
     let res = tokio::process::Command::new("ydotool")
         .arg("click")
@@ -12,11 +38,23 @@ async fn click() {
     }
 }
 
+#[derive(Debug, Clone, SmartDefault)]
+pub struct FishingArgs {
+    #[default("--")]
+    pub scale: String,
+    #[default(0.5)]
+    pub time_interval: f32,
+    #[default("Ebonkoi")]
+    pub keyword: String,
+}
+
 pub async fn start_fishing(
-    scale: String,
-    time_interval: f32,
-    keyword: String,
-) -> Result<Infallible, Box<dyn std::error::Error>> {
+    FishingArgs {
+        scale,
+        time_interval,
+        keyword,
+    }: FishingArgs,
+) -> Result<Infallible, FishingErr> {
     let home = std::env::var("HOME").expect("No home");
     let mut path = PathBuf::from(home);
     path.push(".cache/auto_fishing/");
@@ -27,17 +65,12 @@ pub async fn start_fishing(
     tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
 
     loop {
-        let res = tokio::process::Command::new("grim")
+        tokio::process::Command::new("grim")
             .arg("-g")
             .arg(&format!("{}", &scale))
             .arg(&path)
             .output()
-            .await;
-
-        if let Err(e) = res {
-            println!("{e}");
-            return Err(Box::new(e));
-        }
+            .await?;
 
         let ocr = tesseract::Tesseract::new(None, Some("eng"))?;
         let mut ocr = ocr.set_image(&path.to_str().expect("No image"))?;
