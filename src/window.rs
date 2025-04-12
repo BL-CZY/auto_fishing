@@ -22,13 +22,13 @@ impl Window {
 
         let select_range_button = button("Select range").on_press(Message::GetScale);
 
-        let scale_text = text(format!("{}", context.scale));
+        let scale_text = text(format!("{}", context.args.scale));
 
         let time_input = text_input("0.5", &context.raw_time)
             .on_input(Message::TimeInterval)
             .padding(10);
 
-        let name_input = text_input("ebonkoi", &context.name)
+        let name_input = text_input("ebonkoi", &context.args.keyword)
             .on_input(Message::ItemName)
             .padding(10);
 
@@ -50,6 +50,11 @@ impl Window {
                     time_input.width(Length::Fill),
                     text("Name:"),
                     name_input.width(Length::Fill),
+                    text(context.err.clone()).style(|theme: &Theme| {
+                        text::Style {
+                            color: Some(theme.palette().danger),
+                        }
+                    }),
                 ]
                 .spacing(20)
                 .padding(20),

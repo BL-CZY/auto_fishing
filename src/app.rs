@@ -1,18 +1,23 @@
+use std::sync::Arc;
+
 use iced::futures::{SinkExt, Stream};
 use iced::stream::try_channel;
 use iced::widget::horizontal_space;
 use iced::{Element, Subscription, Task, window};
 use smart_default::SmartDefault;
 
-use crate::fishing::{FishingArgs, FishingErr, FishingEvt, fishing_process_stream, start_fishing};
+use crate::fishing::{FishingArgs, FishingErr, FishingEvt, fishing_process_stream};
 use crate::tray::{TrayEvents, TrayInput, create_icon};
 use crate::window::Window;
 
 #[derive(SmartDefault)]
 pub struct Context {
     pub args: FishingArgs,
+    #[default(false)]
+    pub is_fishing: bool,
+    pub err: String,
 
-    pub handle: Option<tokio::task::JoinHandle<()>>,
+    pub handle: Option<Arc<tokio::task::JoinHandle<()>>>,
 
     #[default("0.5")]
     pub raw_time: String,
@@ -37,10 +42,11 @@ pub enum Message {
     ScaleVal(String),
     TimeInterval(String),
     ItemName(String),
+
     Start,
     Stop,
     FishingEvt(FishingEvt),
-    FishingErr(String),
+    FishingErr(Arc<FishingErr>),
 }
 
 impl Fishing {
@@ -128,11 +134,8 @@ impl Fishing {
                     return Task::none();
                 }
 
-                let handle = tokio::spawn(async move {
-                    // let res = start_fishing(scale, time_interval, keyword).await;
-                    // println!("{:?}", res);
-                });
-                self.context.handle = Some(handle);
+                self.context.err = "".into();
+                self.context.is_fishing = true;
 
                 let Some(tx) = &self.context.input_sender else {
                     return Task::none();
@@ -156,6 +159,7 @@ impl Fishing {
 
                 handle.abort();
                 self.context.handle = None;
+                self.context.is_fishing = false;
 
                 let Some(tx) = &self.context.input_sender else {
                     return Task::none();
@@ -178,8 +182,16 @@ impl Fishing {
                 Task::none()
             }
 
-            Message::FishingEvt(_) => Task::none(),
-            Message::FishingErr(_) => Task::none(),
+            Message::FishingEvt(evt) => match evt {
+                FishingEvt::PassHandle(handle) => {
+                    self.context.handle = Some(handle);
+                    Task::none()
+                }
+            },
+            Message::FishingErr(err) => {
+                self.context.err = err.to_string();
+                Task::none()
+            }
         }
     }
 
@@ -198,6 +210,7 @@ impl Fishing {
                 .map(|val| val.map_or_else(|e| TrayEvents::Err(e), |e| e))
                 .map(Message::Tray),
             scale_capture(self.context.is_capturing),
+            fishing_process(self.context.is_fishing, &self.context.args),
         ])
     }
 }
@@ -244,10 +257,6 @@ fn fishing_process(is_fishing: bool, args: &FishingArgs) -> Subscription<Message
         return Subscription::none();
     }
 
-    Subscription::run_with_id(0, fishing_process_stream(args.clone())).map(|res| {
-        res.map_or_else(
-            |e| Message::FishingErr(e.to_string()),
-            |evt| Message::FishingEvt(evt),
-        )
-    })
+    Subscription::run_with_id(0, fishing_process_stream(args.clone()))
+        .map(|res| res.map_or_else(|e| Message::FishingErr(e), |evt| Message::FishingEvt(evt)))
 }

@@ -1,18 +1,36 @@
-use std::{convert::Infallible, path::PathBuf};
+use std::{convert::Infallible, path::PathBuf, sync::Arc};
 
-use iced::{futures::Stream, stream::try_channel};
+use iced::{
+    futures::{SinkExt, Stream, TryFutureExt},
+    stream::try_channel,
+};
 use smart_default::SmartDefault;
 use tesseract::{InitializeError, SetImageError, plumbing::TessBaseApiGetUtf8TextError};
 use thiserror::Error;
+use tokio::task::JoinHandle;
 
 pub fn fishing_process_stream(
     args: FishingArgs,
-) -> impl Stream<Item = Result<FishingEvt, FishingErr>> {
-    try_channel(1, move |tx| async move { Ok(()) })
+) -> impl Stream<Item = Result<FishingEvt, Arc<FishingErr>>> {
+    try_channel(1, move |mut tx| async move {
+        let handle = tokio::spawn(async move {
+            let _ = start_fishing(args).await;
+        });
+
+        let _ = tx
+            .send(FishingEvt::PassHandle(Arc::new(handle)))
+            .unwrap_or_else(|e| {
+                println!("Cannot send handle: {e}");
+            });
+
+        Ok(())
+    })
 }
 
 #[derive(Debug, Clone)]
-pub enum FishingEvt {}
+pub enum FishingEvt {
+    PassHandle(Arc<JoinHandle<()>>),
+}
 
 #[derive(Debug, Error)]
 pub enum FishingErr {
