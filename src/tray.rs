@@ -11,6 +11,7 @@ pub enum TrayEvents {
 pub enum TrayInput {
     Started,
     Stopped,
+    IconUpdate(String),
 }
 
 use iced::futures::{SinkExt, channel::mpsc::Sender};
@@ -91,6 +92,7 @@ fn process_evt(evt: TrayInput, tray: &mut TrayItem) {
     let res = match evt {
         TrayInput::Started => tray.set_icon(IconSource::Resource("emblem-pause")),
         TrayInput::Stopped => tray.set_icon(IconSource::Resource("checkmark")),
+        TrayInput::IconUpdate(_) => Ok(()),
     };
 
     if res.is_err() {

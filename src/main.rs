@@ -3,6 +3,7 @@ use iced::Theme;
 
 pub mod app;
 pub mod fishing;
+pub mod indicator;
 pub mod tray;
 pub mod window;
 
