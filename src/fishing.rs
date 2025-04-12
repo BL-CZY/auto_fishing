@@ -16,8 +16,15 @@ pub fn fishing_process_stream(
         let tx_clone = tx.clone();
 
         let handle = tokio::spawn(async move {
-            let tx_clone0 = tx_clone.clone();
-            let _ = start_fishing(args, tx_clone0).await?;
+            let mut tx_clone0 = tx_clone.clone();
+            let Err(e) = start_fishing(args, tx_clone).await;
+
+            tx_clone0
+                .send(FishingEvt::Err(Arc::new(e)))
+                .await
+                .unwrap_or_else(|e| {
+                    println!("Canot send error: {e}");
+                });
         });
 
         tx.send(FishingEvt::PassHandle(Arc::new(handle)))
@@ -34,6 +41,7 @@ pub fn fishing_process_stream(
 pub enum FishingEvt {
     PassHandle(Arc<JoinHandle<()>>),
     CountDown(i32),
+    Err(Arc<FishingErr>),
 }
 
 #[derive(Debug, Error)]

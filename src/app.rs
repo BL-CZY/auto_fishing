@@ -191,10 +191,13 @@ impl Fishing {
                     self.context.handle = Some(handle);
                     Task::none()
                 }
+
                 FishingEvt::CountDown(num) => {
                     self.context.count_down = num;
                     Task::none()
                 }
+
+                FishingEvt::Err(e) => Task::done(Message::FishingErr(e)),
             },
 
             Message::FishingErr(err) => {
