@@ -1,8 +1,11 @@
 use std::rc::Rc;
 
 use gtk4::{
-    Application, ApplicationWindow,
-    gdk::prelude::{DisplayExt, MonitorExt},
+    Application, ApplicationWindow, CssProvider,
+    gdk::{
+        Display,
+        prelude::{DisplayExt, MonitorExt},
+    },
     gio::prelude::{ApplicationExt, ApplicationExtManual},
     glib::object::Cast,
     prelude::{GtkApplicationExt, GtkWindowExt, WidgetExt},
@@ -56,6 +59,17 @@ pub fn start_gtk(
             .build(),
     );
 
+    // Load the CSS file and add it to the provider
+    let provider = CssProvider::new();
+    provider.load_from_string(include_str!("style.css"));
+
+    // Add the provider to the default screen
+    gtk4::style_context_add_provider_for_display(
+        &Display::default().expect("Could not connect to a display."),
+        &provider,
+        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
+
     app.connect_activate(build_ui);
 
     let app_clone = app.clone();
@@ -77,10 +91,6 @@ pub fn start_gtk(
             window.set_default_width(w);
             window.set_height_request(h);
             window.set_default_height(h);
-
-            window.set_visible(true);
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            window.set_visible(false);
         }
     });
 
@@ -101,7 +111,10 @@ fn build_ui(app: &Application) {
     window.set_anchor(gtk4_layer_shell::Edge::Left, true);
     window.set_anchor(gtk4_layer_shell::Edge::Top, true);
 
+    let main_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
+    main_box.add_css_class("main");
+    window.set_child(Some(&main_box));
+
     // Show the window
     window.present();
-    window.set_visible(false);
 }

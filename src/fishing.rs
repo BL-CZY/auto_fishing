@@ -114,6 +114,14 @@ pub async fn start_fishing(
     });
 
     let (x, y, w, h) = parse_coordinates(&scale).map_err(|e| FishingErr::String(e.to_string()))?;
+    indicator_tx
+        .clone()
+        .unwrap()
+        .send((w, h, x, y))
+        .await
+        .unwrap_or_else(|e| {
+            println!("Cannot send indicator: {e}");
+        });
 
     loop {
         tokio::process::Command::new("grim")
@@ -123,18 +131,15 @@ pub async fn start_fishing(
             .output()
             .await?;
 
-        indicator_tx
-            .clone()
-            .unwrap()
-            .send((w, h, x, y))
-            .await
-            .unwrap_or_else(|e| {
-                println!("Cannot send indicator: {e}");
-            });
+        println!("grim done");
+
+        println!("Spawned indicator");
 
         let ocr = tesseract::Tesseract::new(None, Some("eng"))?;
         let mut ocr = ocr.set_image(&path.to_str().expect("No image"))?;
         let text = ocr.get_text()?;
+
+        println!("OCR: {}", text);
 
         if text.contains(&keyword) {
             click().await;
@@ -143,9 +148,13 @@ pub async fn start_fishing(
             println!("click");
 
             click().await;
+
+            println!("YOOO");
         }
 
         tokio::time::sleep(tokio::time::Duration::from_secs_f32(time_interval)).await;
+
+        println!("slept");
     }
 }
 
