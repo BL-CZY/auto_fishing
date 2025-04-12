@@ -108,12 +108,11 @@ fn build_ui(app: &Application) {
     window.set_namespace(Some("auto_fishing_indicator"));
     window.set_layer(gtk4_layer_shell::Layer::Overlay);
 
+    window.set_keyboard_mode(gtk4_layer_shell::KeyboardMode::None);
+    window.set_exclusive_zone(-1);
+
     window.set_anchor(gtk4_layer_shell::Edge::Left, true);
     window.set_anchor(gtk4_layer_shell::Edge::Top, true);
-
-    let main_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
-    main_box.add_css_class("main");
-    window.set_child(Some(&main_box));
 
     // Show the window
     window.present();

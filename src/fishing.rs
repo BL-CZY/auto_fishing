@@ -113,15 +113,17 @@ pub async fn start_fishing(
         println!("Cannot send fishing event: {e}");
     });
 
-    let (x, y, w, h) = parse_coordinates(&scale).map_err(|e| FishingErr::String(e.to_string()))?;
-    indicator_tx
-        .clone()
-        .unwrap()
-        .send((w, h, x, y))
-        .await
-        .unwrap_or_else(|e| {
-            println!("Cannot send indicator: {e}");
-        });
+    // let (x, y, w, h) = parse_coordinates(&scale).map_err(|e| FishingErr::String(e.to_string()))?;
+    // indicator_tx
+    //     .clone()
+    //     .unwrap()
+    //     .send((w, h, x, y))
+    //     .await
+    //     .unwrap_or_else(|e| {
+    //         println!("Cannot send indicator: {e}");
+    //     });
+
+    let keywords: Vec<&str> = keyword.split(",").collect();
 
     loop {
         tokio::process::Command::new("grim")
@@ -141,7 +143,16 @@ pub async fn start_fishing(
 
         println!("OCR: {}", text);
 
-        if text.contains(&keyword) {
+        let mut contains = false;
+
+        for kwd in keywords.iter() {
+            if text.contains(kwd) {
+                contains = true;
+                break;
+            }
+        }
+
+        if contains {
             click().await;
 
             tokio::time::sleep(tokio::time::Duration::from_secs_f64(1.0)).await;
